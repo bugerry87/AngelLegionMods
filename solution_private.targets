@@ -1,0 +1,8 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- Manual overrides -->
+  <PropertyGroup>
+	<GamePath>D:\SteamLibrary\steamapps\common\Angel Legion</GamePath>
+  </PropertyGroup>
+
+</Project>

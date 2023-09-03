@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Collections;
 using System.Collections.Generic;
 using System.Xml.Linq;
 using System.Reflection;
@@ -11,12 +12,10 @@ using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
 using protocol.game;
-using System.Drawing;
-using Steamworks;
 
-namespace CustomAssetLoader
+namespace DressCode
 {
-	[BepInPlugin("bugerry.CustomAssetLoader", "Custom Asset Loader", "0.0.1")]
+	[BepInPlugin("bugerry.CustomAssetLoader", "Custom Asset Loader", "0.2.0")]
 	public partial class BepInExPlugin : BaseUnityPlugin
 	{
 		public static BepInExPlugin context;
@@ -26,10 +25,12 @@ namespace CustomAssetLoader
 
 		public static ConfigEntry<bool> isEnabled;
 		public static ConfigEntry<bool> isDebug;
+		public static ConfigEntry<bool> unlockAll;
 		public static ConfigEntry<string> fashionAssetPath;
 		public static ConfigEntry<string> fashionSavePath;
 
 		public static Dictionary<int, int> FashionMap = new Dictionary<int, int>();
+		public static Dictionary<string, LoadedAssetBundle> AssetBundles;
 
 		public BepInExPlugin()
 		{
@@ -46,6 +47,12 @@ namespace CustomAssetLoader
 				true,
 				"Enables or disabled debug mode"
 			);
+			unlockAll = Config.Bind(
+				"Fashion",
+				"Unlock All",
+				false,
+				"Unlocks all sort of fashion"
+			);
 			fashionAssetPath = Config.Bind(
 				"Fashion",
 				"Asset Path",
@@ -59,26 +66,17 @@ namespace CustomAssetLoader
 				"File path to fashion save file"
 			);
 
-			debug = isDebug.Value ? Logger : null;
-
 			if (isEnabled.Value)
 			{
-				try
-				{
-					Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly(), null);
-					debug?.LogInfo("CustomAssetLoader Patched");
-				}
-				catch
-				{
-					debug?.LogError("CustomAssetLoader Patch Failed!!!");
-				}
+				debug = isDebug.Value ? Logger : null;
+				Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly(), null);
 			}
 		}
 
 		protected void LoadFashionConfigs()
 		{
 			var assetPath = string.Join("/", Application.streamingAssetsPath, fashionAssetPath.Value);
-			foreach (var file in Directory.EnumerateFiles(assetPath, "*.xml", SearchOption.TopDirectoryOnly))
+			foreach (var file in Directory.EnumerateFiles(assetPath, "*.xml", SearchOption.AllDirectories))
 			{
 				try
 				{
@@ -87,26 +85,27 @@ namespace CustomAssetLoader
 					foreach (var part in doc.Elements("part"))
 					{
 						var icon = part.Element("icon");
+						var icon_pack = icon?.Attribute("pack")?.Value;
 						var has_color = int.TryParse(icon?.Attribute("color")?.Value, out int color);
 						var attr_id = part.Attribute("id");
 						if (attr_id != null && int.TryParse(attr_id.Value, out int id))
 						{
 							foreach (var mesh in part.Elements("mesh"))
 							{
-								var attr_pack = mesh.Attribute("pack");
-								attr_pack?.SetValue(string.Join("/", fashionAssetPath.Value, attr_pack?.Value));
+								var mash_pack = mesh.Attribute("pack");
+								mash_pack?.SetValue(string.Join("/", fashionAssetPath.Value, mash_pack?.Value));
 							}
 
 							FashionConfigRegister.Add(id, doc);
 							FashionDressRegister.Add(id, new s_t_dress()
 							{
 								id = int.Parse(part.Attribute("id")?.Value),
-								name = part.Attribute("display_name")?.Value ?? part.Attribute("name")?.Value,
+								name = icon?.Attribute("name")?.Value ?? part.Attribute("name")?.Value,
 								type = 1,
 								res = part.Attribute("name")?.Value,
 								desc = part.Element("description")?.Value,
 								color = has_color ? color : 2,
-								icon = icon?.Attribute("texture")?.Value,
+								icon = icon_pack != null ? string.Join("/", fashionAssetPath.Value, icon_pack) : null,
 								access = part.Element("access")?.Value,
 								dlcId = "",
 								is_show = 1,
@@ -182,6 +181,43 @@ namespace CustomAssetLoader
 			}
 		}
 
+		[HarmonyPatch(typeof(ResourceManager), nameof(ResourceManager.Init))]
+		public static class ResoucreManager_LoadObjectAsync_Patch
+		{
+			public static void Postfix(Dictionary<string, LoadedAssetBundle> ___loadedAssetbundles)
+			{
+				AssetBundles = ___loadedAssetbundles;
+			}
+		}
+
+		[HarmonyPatch(typeof(sys), nameof(sys.get_texture_2D_async))]
+		public static class Sys_GetTexture2DAsync_Patch
+		{
+			public static bool Prefix(string name, out Task<Texture2D> __result)
+			{
+				__result = null;
+				if (name != null && name.StartsWith(fashionAssetPath.Value))
+				{
+					try
+					{
+						var paths = name.Split(':');
+						var pack = paths[0];
+						var part = paths.Length > 1 ? paths[1] : Path.GetFileName(pack);
+						var obj = Utility.ResManager.LoadObject(pack) as GameObject;
+						var icon = obj?.transform?.Find(part);
+						var renderer = icon?.GetComponent<SpriteRenderer>();
+						__result = Task.Run(() => renderer?.sprite?.texture);
+					}
+					catch (Exception e)
+					{
+						debug?.LogError(e);
+					}
+					return false;
+				}
+				return true;
+			}
+		}
+
 		[HarmonyPatch(typeof(sys), "init_player")]
 		public static class Sys_InitPlayer_Patch
 		{
@@ -192,11 +228,12 @@ namespace CustomAssetLoader
 
 			public static void Postfix(sys __instance)
 			{
+				//QualitySettings.antiAliasing = 12;
 				debug.LogInfo("Sys Init Player");
 				foreach (var entry in FashionMap)
 				{
 					var role = __instance.m_self.get_card_id(entry.Key)?.get_role();
-					if (role != null)
+					if (role != null && __instance.m_self.has_dress(entry.Value))
 					{
 						role.dress = entry.Value;
 					}
@@ -207,8 +244,11 @@ namespace CustomAssetLoader
 		[HarmonyPatch(typeof(ConfigManager), nameof(ConfigManager.get_t_dress))]
 		public static class ConfigManager_GetDress_Patch
 		{
-			public static bool Prefix(int id, out s_t_dress __result)
+			public static ConfigManager instance;
+
+			public static bool Prefix(ConfigManager __instance, int id, out s_t_dress __result)
 			{
+				instance = __instance;
 				__result = null;
 				if (id >= 0)
 				{
@@ -228,7 +268,7 @@ namespace CustomAssetLoader
 			public static bool Prefix(int dress_id, out bool __result)
 			{
 				__result = true;
-				return dress_id >= 0;
+				return !unlockAll.Value && dress_id >= 0;
 			}
 		}
 
@@ -238,7 +278,7 @@ namespace CustomAssetLoader
 			public static bool Prefix(int dress_id, out int __result)
 			{
 				__result = 1;
-				return dress_id >= 0;
+				return !unlockAll.Value && dress_id >= 0;
 			}
 		}
 
@@ -248,7 +288,7 @@ namespace CustomAssetLoader
 			public static bool Prefix(s_t_dress t_dress, out int __result)
 			{
 				__result = 2;
-				return t_dress.id >= 0;
+				return !unlockAll.Value && t_dress.id >= 0;
 			}
 		}
 
@@ -269,7 +309,7 @@ namespace CustomAssetLoader
 			{
 				var id = DressGui_Reset_Patch.card.get_template_id();
 				var dress_id = DressGui_Reset_Patch.card.get_role().dress;
-				if (FashionMap != null && dress_id < 0)
+				if (FashionMap != null && (unlockAll.Value || dress_id < 0))
 				{
 					var card = sys._instance.m_self.get_card_id(id);
 					card.get_role().dress = dress_id;
@@ -287,8 +327,6 @@ namespace CustomAssetLoader
 		[HarmonyPatch(typeof(dress_gui), "list_item")]
 		public static class DressGui_ListItem_Patch
 		{
-			public static s_t_dress dress;
-
 			public static MethodBase TargetMethod()
 			{
 				return typeof(dress_gui).GetMethod("list_item");
@@ -308,7 +346,7 @@ namespace CustomAssetLoader
 		[HarmonyPatch(typeof(battle), nameof(battle.add_unit))]
 		public static class Battle_AddUnit_Patch
 		{
-			public static void Prefix(battle __instance, msg_fight_role _role, Vector3 pos)
+			public static void Prefix(msg_fight_role _role, Vector3 pos)
 			{
 				if (_role.site < 6 && FashionMap.TryGetValue(_role.id, out int dress_id))
 				{
@@ -325,14 +363,15 @@ namespace CustomAssetLoader
 				if (name.EndsWith("part_ex"))
 				{
 					var unit = __result.m_xml.Element("unit");
-					if (unit != null)
+					if (unit != null && unit.Attribute("modded") == null)
 					{
 						foreach (var doc in FashionConfigRegister.Values)
 						{
 							unit.Add(doc.Elements("part"));
 						}
+						unit.Add(new XAttribute("modded", true));
+						__result.m_part = unit.Elements("part");
 					}
-					__result.m_part = unit.Elements("part");
 				}
 			}
 		}

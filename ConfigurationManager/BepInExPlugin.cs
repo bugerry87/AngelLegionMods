@@ -17,7 +17,7 @@ namespace ConfigurationManager
 {
     using LogLevel = BepInEx.Logging.LogLevel;
 
-	[BepInPlugin("bugerry.ConfigurationManager", "BepInEx Configuration Manager", "1.0.0")]
+	[BepInPlugin("bugerry.ConfigurationManager", "BepInEx Configuration Manager", "1.1.0")]
     public class BepInExPlugin : BaseUnityPlugin
     {
         public static void Dbgl(string str = "", bool pref = true)

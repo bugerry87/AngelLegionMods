@@ -63,11 +63,6 @@
       <HintPath>$(ManagedDataPath)\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Assembly-CSharp-firstpass">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(ManagedDataPath)\Assembly-CSharp-firstpass.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
   </ItemGroup>
 
   <!-- Add Unity references -->
@@ -167,11 +162,6 @@
       <HintPath>$(UnityPath)\UnityEngine.TerrainModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityEngine.TextCoreModule">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(UnityPath)\UnityEngine.TextCoreModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>$(UnityPath)\UnityEngine.TextRenderingModule.dll</HintPath>
@@ -200,6 +190,16 @@
     <Reference Include="UnityEngine.AssetBundleModule">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>$(UnityPath)\UnityEngine.AssetBundleModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+	<Reference Include="UnityEngine.InputLegacyModule">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>$(UnityPath)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+	<Reference Include="Main">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>$(UnityPath)\Main.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>

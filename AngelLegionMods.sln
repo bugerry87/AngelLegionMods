@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CustomAssetLoader", "Custom
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DressCode", "DressCode\DressCode.csproj", "{DB9F67CF-4A87-43BF-869B-7AF5B3120E50}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Graphics", "Graphics\Graphics.csproj", "{CF400FAD-DF69-48C7-9DC3-846A8F43F64D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,8 +29,15 @@ Global
 		{DB9F67CF-4A87-43BF-869B-7AF5B3120E50}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DB9F67CF-4A87-43BF-869B-7AF5B3120E50}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DB9F67CF-4A87-43BF-869B-7AF5B3120E50}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF400FAD-DF69-48C7-9DC3-846A8F43F64D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF400FAD-DF69-48C7-9DC3-846A8F43F64D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF400FAD-DF69-48C7-9DC3-846A8F43F64D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF400FAD-DF69-48C7-9DC3-846A8F43F64D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {ADEA14AD-68CD-4FAF-8D13-56F13C4FBE3E}
 	EndGlobalSection
 EndGlobal

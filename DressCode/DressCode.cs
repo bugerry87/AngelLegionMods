@@ -4,10 +4,11 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
+using UnityEngine;
 
 namespace DressCode
 {
-	[BepInPlugin("bugerry.DressCode", "Dress Code", "0.0.1")]
+	[BepInPlugin("bugerry.DressCode", "Dress Code", "0.1.0")]
 	public partial class BepInExPlugin : BaseUnityPlugin
 	{
 		public static BepInExPlugin context;
@@ -16,8 +17,9 @@ namespace DressCode
 		public static ConfigEntry<bool> isEnabled;
 		public static ConfigEntry<bool> isDebug;
 
-		public static ConfigEntry<bool> uncencor;
+		public static ConfigEntry<bool> uncensor;
 		public static ConfigEntry<bool> fixHomeFashion;
+		public static ConfigEntry<bool> fixHomeHair;
 
 		public BepInExPlugin()
 		{
@@ -34,7 +36,7 @@ namespace DressCode
 				true,
 				"Enables or disabled debug mode"
 			);
-			uncencor = Config.Bind(
+			uncensor = Config.Bind(
 				"Dress Code",
 				"Disable Censorship",
 				true,
@@ -44,7 +46,13 @@ namespace DressCode
 				"Dress Code",
 				"Fix Home Fashion",
 				true,
-				"Forces Miya to where selected Fashion at home"
+				"Forces Miya to where selected fashion at home"
+			);
+			fixHomeHair = Config.Bind(
+				"Dress Code",
+				"Fix Home Hair",
+				true,
+				"Forces Miya to where selected hair at home"
 			);
 
 			if (isEnabled.Value)
@@ -54,31 +62,56 @@ namespace DressCode
 			}
 		}
 
-		/*
-		[HarmonyPatch(typeof(unit), "message")]
-		public static class Unit_Message_Patch
+		[HarmonyPatch(typeof(ConfigManager), nameof(ConfigManager.get_t_dress))]
+		public static class ConfigManager_Patch
+		{
+			public static ConfigManager instance;
+
+			public static void Prefix(ConfigManager __instance, int id)
+			{
+				instance = __instance;
+			}
+		}
+
+		[HarmonyPatch(typeof(director_ex), "msg")]
+		[HarmonyPatch(new Type[] { typeof(s_message) })]
+		public static class Director_Msg_Patch
 		{
 			public static MethodBase TargetMethod()
 			{
-				return typeof(IMessage).GetMethod("message");
+				return typeof(director_ex).GetMethod("msg", new Type[] { typeof(s_message) });
 			}
 
-			public static void Prefix(s_message message)
+			public static void Postfix(director_ex __instance, s_message _msg)
 			{
-				switch (message.m_type)
+				if (!fixHomeHair.Value || _msg.m_type != "unit_hair")
 				{
-					case "unit_part":
-					case "unit_part2":
-					case "unit_part_random":
-					case "unit_part_random2":
-						message.m_type = "ignore";
-						break;
-					default:
-						break;
+					return;
+				}
+
+				var miya = __instance.m_unit_root.Find("miya")?.GetComponentInChildren<unit>(true);
+				var face = sys._instance.m_self.m_cards[0].get_role().faces;
+				var cm = ConfigManager_Patch.instance;
+
+				if (miya && face?.Count > 38)
+				{
+					var id = face[37];
+					s_t_role_makeup s_t_role_makeup = cm.get_t_role_makeup(id);
+					if (s_t_role_makeup != null && miya.m_t_class == null)
+					{
+						var num = (float)face[38];
+						float time = 0.001f * (num / 1000f);
+						float time2 = 0.001f * (num % 1000f);
+						var color = sys._instance.m_hair_color.Evaluate(time) + (sys._instance.m_hair_bright.Evaluate(time2) - Color.gray) * 2f;
+						var hash = "#" + ColorUtility.ToHtmlStringRGB(color);
+
+						miya.m_t_class = new s_t_class();
+						miya.change_part(s_t_role_makeup.skin_resource, hash);
+						miya.init_part();
+					}
 				}
 			}
 		}
-		*/
 
 		[HarmonyPatch(typeof(director_ex), nameof(director_ex.play_director))]
 		[HarmonyPatch(new Type[] { typeof(string), typeof(string), typeof(bool), typeof(bool) })]
@@ -94,7 +127,7 @@ namespace DressCode
 					case "unit_part_random2":
 						return fixHomeFashion.Value;
 					case "cam_mask_on":
-						return uncencor.Value;
+						return uncensor.Value;
 					default:
 						return false;
 				}
@@ -105,6 +138,7 @@ namespace DressCode
 				debug?.LogInfo("Director Play");
 				___m_director.time_lists?.RemoveAll(Predicate);
 				___m_director.lists?.RemoveAll(Predicate);
+				___m_director.lists?.Add(new s_message("unit_hair"));
 			}
 		}
 	}

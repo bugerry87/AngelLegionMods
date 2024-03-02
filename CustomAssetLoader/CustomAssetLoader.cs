@@ -15,7 +15,7 @@ using protocol.game;
 
 namespace DressCode
 {
-	[BepInPlugin("bugerry.CustomAssetLoader", "Custom Asset Loader", "0.2.0")]
+	[BepInPlugin("bugerry.CustomAssetLoader", "Custom Asset Loader", "0.2.1")]
 	public partial class BepInExPlugin : BaseUnityPlugin
 	{
 		public static BepInExPlugin context;
@@ -159,7 +159,7 @@ namespace DressCode
 		{
 			LoadFashionSaveFile();
 			Task.Run(LoadFashionConfigs);
-			debug.LogInfo("CustomAssetLoader Awaken");
+			debug?.LogInfo("CustomAssetLoader Awaken");
 		}
 
 		protected void OnDestroy()
@@ -229,7 +229,7 @@ namespace DressCode
 			public static void Postfix(sys __instance)
 			{
 				//QualitySettings.antiAliasing = 12;
-				debug.LogInfo("Sys Init Player");
+				debug?.LogInfo("Sys Init Player");
 				foreach (var entry in FashionMap)
 				{
 					var role = __instance.m_self.get_card_id(entry.Key)?.get_role();
@@ -244,11 +244,8 @@ namespace DressCode
 		[HarmonyPatch(typeof(ConfigManager), nameof(ConfigManager.get_t_dress))]
 		public static class ConfigManager_GetDress_Patch
 		{
-			public static ConfigManager instance;
-
 			public static bool Prefix(ConfigManager __instance, int id, out s_t_dress __result)
 			{
-				instance = __instance;
 				__result = null;
 				if (id >= 0)
 				{

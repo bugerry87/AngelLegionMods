@@ -2,7 +2,6 @@
 // Copyright 2018 GNU General Public License v3.0
 
 using BepInEx;
-using BepInEx.Bootstrap;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
@@ -18,15 +17,9 @@ namespace ConfigurationManager
     using LogLevel = BepInEx.Logging.LogLevel;
 
 	[BepInPlugin("bugerry.ConfigurationManager", "BepInEx Configuration Manager", "1.1.0")]
-    public class BepInExPlugin : BaseUnityPlugin
+    public class ConfigurationManager : BaseUnityPlugin
     {
-        public static void Dbgl(string str = "", bool pref = true)
-        {
-            if (isDebug.Value)
-                Debug.Log((pref ? typeof(BepInExPlugin).Namespace + " " : "") + str);
-        }
-
-        internal static BepInExPlugin context;
+        internal static ConfigurationManager context;
         internal static new ManualLogSource Logger;
         private static SettingFieldDrawer _fieldDrawer;
 
@@ -41,13 +34,7 @@ namespace ConfigurationManager
         /// </summary>
         public event EventHandler<ValueChangedEventArgs<bool>> DisplayingWindowChanged;
 
-        /// <summary>
-        /// Disable the hotkey check used by config manager. If enabled you have to set <see cref="DisplayingWindow"/> to show the manager.
-        /// </summary>
-        public bool OverrideHotkey;
-
         private bool _displayingWindow;
-        private bool _obsoleteCursor;
 
         private string _modsWithoutSettings;
 
@@ -62,8 +49,6 @@ namespace ConfigurationManager
 
         private PropertyInfo _curLockState;
         private PropertyInfo _curVisible;
-        private int _previousCursorLockState;
-        private bool _previousCursorVisible;
 
         internal static Texture2D WindowBackground { get; private set; }
         internal static Texture2D EntryBackground { get; private set; }
@@ -123,7 +108,7 @@ namespace ConfigurationManager
         public static int fontSize = 14;
 
         /// <inheritdoc />
-        public BepInExPlugin()
+        public ConfigurationManager()
         {
             context = this;
             Logger = base.Logger;
@@ -133,8 +118,7 @@ namespace ConfigurationManager
             _keybind = Config.Bind("General", "Show config manager", new KeyboardShortcut(KeyCode.F1),
                 new ConfigDescription("The shortcut used to toggle the config manager window on and off.\n" +
                                       "The key can be overridden by a game-specific plugin if necessary, in that case this setting is ignored."));
-            nexusID = Config.Bind<int>("General", "NexusID", 32, "Nexus mod ID for updates");
-            nexusID.Value = 32;
+            nexusID = Config.Bind<int>("General", "NexusID", 1, "Nexus mod ID for updates");
             modEnabled = Config.Bind<bool>("General", "Enabled", true, "Enable this mod");
             isDebug = Config.Bind<bool>("General", "IsDebug", true, "Enable debug logs");
 
@@ -168,12 +152,10 @@ namespace ConfigurationManager
             _widgetBackgroundColor = Config.Bind("Colors", "WidgetColor", new Color(0f, 0.463f, 0.882f, 0.749f), "Widget color");
 
             currentWindowRect = new Rect(_windowPosition.Value, _windowSize.Value);
+			Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly(), null);
+		}
 
-            Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly(), null);
-
-        }
-
-        protected void OnGUI()
+		protected void OnGUI()
         {
             if (DisplayingWindow)
             {
@@ -188,7 +170,6 @@ namespace ConfigurationManager
 
                 CreateBackgrounds();
                 CreateStyles();
-                SetUnlockCursor(0, true);
 
                 GUI.Box(currentWindowRect, GUIContent.none, new GUIStyle());
                 GUI.backgroundColor = _windowBackgroundColor.Value;
@@ -520,18 +501,6 @@ namespace ConfigurationManager
                     BuildSettingList();
 
                     _focusSearchBox = true;
-
-                    // Do through reflection for unity 4 compat
-                    if (_curLockState != null)
-                    {
-                        _previousCursorLockState = _obsoleteCursor ? Convert.ToInt32((bool)_curLockState.GetValue(null, null)) : (int)_curLockState.GetValue(null, null);
-                        _previousCursorVisible = (bool)_curVisible.GetValue(null, null);
-                    }
-                }
-                else
-                {
-                    if (!_previousCursorVisible || _previousCursorLockState != 0) // 0 = CursorLockMode.None
-                        SetUnlockCursor(_previousCursorLockState, _previousCursorVisible);
                 }
 
                 DisplayingWindowChanged?.Invoke(this, new ValueChangedEventArgs<bool>(value));
@@ -696,30 +665,16 @@ namespace ConfigurationManager
             }
         }
 
-        protected void Start()
+        protected void Awake()
         {
-            try
-            {
-                Dbgl("Searching for vanilla Config Manager.");
-                var vanilla = Chainloader.PluginInfos.First(p => p.Key == "com.bepis.bepinex.configurationmanager");
-                vanilla.Value.Instance.enabled = false;
-                Dbgl("Disabled Vanilla Config Manager");
-            }
-            catch
-            {
-                Dbgl("Vanilla Config Manager not found.");
-            }
-
-
+			Logger.LogInfo("Awaken");
             // Use reflection to keep compatibility with unity 4.x since it doesn't have Cursor
             var tCursor = typeof(Cursor);
             _curLockState = tCursor.GetProperty("lockState", BindingFlags.Static | BindingFlags.Public);
             _curVisible = tCursor.GetProperty("visible", BindingFlags.Static | BindingFlags.Public);
 
             if (_curLockState == null && _curVisible == null)
-            {
-                _obsoleteCursor = true;
-                
+            {   
                 _curLockState = typeof(Screen).GetProperty("lockCursor", BindingFlags.Static | BindingFlags.Public);
                 _curVisible = typeof(Screen).GetProperty("showCursor", BindingFlags.Static | BindingFlags.Public);
             }
@@ -730,19 +685,20 @@ namespace ConfigurationManager
             catch (UnauthorizedAccessException ex) { Logger.Log(LogLevel.Message | LogLevel.Warning, "WARNING: Permission denied to write to config directory, expect issues!\nError message:" + ex.Message); }
         }
 
-        protected void Update()
+        protected void OnDestroy()
         {
-            if (DisplayingWindow) SetUnlockCursor(0, true);
+            Logger.LogInfo("Destroyed");
+        }
 
-            if (OverrideHotkey) return;
 
+		protected void Update()
+        {
             if (!DisplayingWindow && _keybind.Value.IsUp())
             {
                 CreateBackgrounds();
-               
                 DisplayingWindow = true;
             }
-        }
+		}
 
         private void CreateStyles()
         {
@@ -798,27 +754,6 @@ namespace ConfigurationManager
             EntryBackground = entryBackground;
         }
 
-        protected void LateUpdate()
-        {
-            if (DisplayingWindow) SetUnlockCursor(0, true);
-        }
-
-        private void SetUnlockCursor(int lockState, bool cursorVisible)
-        {
-            if (_curLockState != null)
-            {
-                // Do through reflection for unity 4 compat
-                //Cursor.lockState = CursorLockMode.None;
-                //Cursor.visible = true;
-                if(_obsoleteCursor)
-                    _curLockState.SetValue(null, Convert.ToBoolean(lockState), null);
-                else
-                    _curLockState.SetValue(null, lockState, null);
-                
-                _curVisible.SetValue(null, cursorVisible, null);
-            }
-        }
-
         private sealed class PluginSettingsData
         {
             public BepInPlugin Info;
@@ -843,5 +778,34 @@ namespace ConfigurationManager
 
             public int Height { get; set; }
         }
-    }
+
+        /*
+        public class Helper: MonoBehaviour
+        {
+            protected void Update()
+            {
+                context.Update();
+            }
+
+            protected void OnGUI()
+            {
+                context.OnGUI();
+            }
+        }
+
+		[HarmonyPatch(typeof(sys), "Init")]
+		public static class Sys_Update_Patch
+		{
+			public static MethodBase TargetMethod()
+			{
+				return typeof(sys).GetMethod("Init");
+			}
+
+			public static void Postfix()
+			{
+                sys._instance.gameObject.AddComponent<Helper>();
+			}
+		}
+        */
+	}
 }

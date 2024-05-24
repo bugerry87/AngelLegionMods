@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Threading.Tasks;
-using System.Collections;
 using System.Collections.Generic;
 using System.Xml.Linq;
 using System.Reflection;
@@ -15,24 +14,27 @@ using protocol.game;
 
 namespace DressCode
 {
-	[BepInPlugin("bugerry.CustomAssetLoader", "Custom Asset Loader", "0.2.1")]
-	public partial class BepInExPlugin : BaseUnityPlugin
+	[BepInPlugin("bugerry.CustomAssetLoader", "Custom Asset Loader", "0.3.0")]
+	public partial class CustomAssetLoader : BaseUnityPlugin
 	{
-		public static BepInExPlugin context;
+		public static CustomAssetLoader context;
 		public static ManualLogSource debug;
-		public static readonly Dictionary<int, XDocument> FashionConfigRegister = new Dictionary<int, XDocument>();
-		public static readonly Dictionary<int, s_t_dress> FashionDressRegister = new Dictionary<int, s_t_dress>();
+		public static readonly Dictionary<int, XDocument> ConfigRegister = new Dictionary<int, XDocument>();
+		public static readonly Dictionary<int, s_t_dress> DressRegister = new Dictionary<int, s_t_dress>();
 
 		public static ConfigEntry<bool> isEnabled;
 		public static ConfigEntry<bool> isDebug;
 		public static ConfigEntry<bool> unlockAll;
 		public static ConfigEntry<string> fashionAssetPath;
 		public static ConfigEntry<string> fashionSavePath;
+		public static ConfigEntry<string> accessoryAssetPath;
+		public static ConfigEntry<string> accessorySavePath;
 
 		public static Dictionary<int, int> FashionMap = new Dictionary<int, int>();
+		public static Dictionary<int, int> AccessoryMap = new Dictionary<int, int>();
 		public static Dictionary<string, LoadedAssetBundle> AssetBundles;
 
-		public BepInExPlugin()
+		public CustomAssetLoader()
 		{
 			context = this;
 			isEnabled = Config.Bind(
@@ -65,6 +67,18 @@ namespace DressCode
 				string.Join("/", Application.persistentDataPath, "fashion.sav"),
 				"File path to fashion save file"
 			);
+			accessoryAssetPath = Config.Bind(
+				"Accessory",
+				"Asset Path",
+				"custom/accessory",
+				"Relative path to custom accessory assets"
+			);
+			accessorySavePath = Config.Bind(
+				"Accessory",
+				"Save File",
+				string.Join("/", Application.persistentDataPath, "accessory.sav"),
+				"File path to accessory save file"
+			);
 
 			if (isEnabled.Value)
 			{
@@ -73,9 +87,9 @@ namespace DressCode
 			}
 		}
 
-		protected void LoadFashionConfigs()
+		protected void LoadConfigs(string path)
 		{
-			var assetPath = string.Join("/", Application.streamingAssetsPath, fashionAssetPath.Value);
+			var assetPath = string.Join("/", Application.streamingAssetsPath, path);
 			foreach (var file in Directory.EnumerateFiles(assetPath, "*.xml", SearchOption.AllDirectories))
 			{
 				try
@@ -93,19 +107,19 @@ namespace DressCode
 							foreach (var mesh in part.Elements("mesh"))
 							{
 								var mash_pack = mesh.Attribute("pack");
-								mash_pack?.SetValue(string.Join("/", fashionAssetPath.Value, mash_pack?.Value));
+								mash_pack?.SetValue(string.Join("/", path, mash_pack?.Value));
 							}
 
-							FashionConfigRegister.Add(id, doc);
-							FashionDressRegister.Add(id, new s_t_dress()
+							ConfigRegister.Add(id, doc);
+							DressRegister.Add(id, new s_t_dress()
 							{
 								id = int.Parse(part.Attribute("id")?.Value),
 								name = icon?.Attribute("name")?.Value ?? part.Attribute("name")?.Value,
-								type = 1,
+								type = part.Attribute("type")?.Value == "glasses" ? 2 : 1,
 								res = part.Attribute("name")?.Value,
 								desc = part.Element("description")?.Value,
 								color = has_color ? color : 2,
-								icon = icon_pack != null ? string.Join("/", fashionAssetPath.Value, icon_pack) : null,
+								icon = icon_pack != null ? string.Join("/", path, icon_pack) : null,
 								access = part.Element("access")?.Value,
 								dlcId = "",
 								is_show = 1,
@@ -131,13 +145,13 @@ namespace DressCode
 			}
 		}
 
-		protected void LoadFashionSaveFile()
+		protected void LoadSaveFile(string path)
 		{
 			try
 			{
-				if (File.Exists(fashionSavePath.Value))
+				if (File.Exists(path))
 				{
-					using (var fileStream = new FileStream(fashionSavePath.Value, FileMode.Open))
+					using (var fileStream = new FileStream(path, FileMode.Open))
 					{
 						FashionMap = new BinaryFormatter().Deserialize(fileStream) as Dictionary<int, int>;
 						fileStream.Flush();
@@ -146,39 +160,49 @@ namespace DressCode
 				}
 				else
 				{
-					debug?.LogWarning($"Save file {fashionSavePath.Value} not found!");
+					debug?.LogWarning($"Save file {path} not found!");
 				}
 			}
 			catch (Exception e)
 			{
-				debug?.LogError($"Error while loading {fashionSavePath.Value}: {e}");
+				debug?.LogError($"Error while loading {path}: {e}");
 			}
 		}
 
 		protected void Awake()
 		{
-			LoadFashionSaveFile();
-			Task.Run(LoadFashionConfigs);
-			debug?.LogInfo("CustomAssetLoader Awaken");
+			LoadSaveFile(fashionSavePath.Value);
+			LoadSaveFile(accessorySavePath.Value);
+			Task.Run(() => LoadConfigs(fashionAssetPath.Value));
+			Task.Run(() => LoadConfigs(accessoryAssetPath.Value));
+			debug?.LogInfo("Awaken");
 		}
 
-		protected void OnDestroy()
+		protected void Save(Dictionary<int, int> map, string path)
 		{
 			try
 			{
 				using (var fileStream = new FileStream(
-					fashionSavePath.Value,
+					path,
 					FileMode.OpenOrCreate
-				)) {
-					new BinaryFormatter().Serialize(fileStream, FashionMap);
+				))
+				{
+					new BinaryFormatter().Serialize(fileStream, map);
 					fileStream.Flush();
 					fileStream.Close();
 				}
 			}
 			catch
 			{
-				debug?.LogError($"Error while saving {fashionSavePath.Value}!");
+				debug?.LogError($"Error while saving {path}!");
 			}
+		}
+
+		protected void OnApplicationQuit()
+		{
+			debug?.LogInfo("Quit");
+			Save(FashionMap, fashionSavePath.Value);
+			Save(AccessoryMap, accessorySavePath.Value);
 		}
 
 		[HarmonyPatch(typeof(ResourceManager), nameof(ResourceManager.Init))]
@@ -204,8 +228,8 @@ namespace DressCode
 						var pack = paths[0];
 						var part = paths.Length > 1 ? paths[1] : Path.GetFileName(pack);
 						var obj = Utility.ResManager.LoadObject(pack) as GameObject;
-						var icon = obj?.transform?.Find(part);
-						var renderer = icon?.GetComponent<SpriteRenderer>();
+						var icon = obj?.transform?.Find(part) ?? obj?.transform;
+						var renderer = icon?.GetComponentInChildren<SpriteRenderer>();
 						__result = Task.Run(() => renderer?.sprite?.texture);
 					}
 					catch (Exception e)
@@ -228,7 +252,6 @@ namespace DressCode
 
 			public static void Postfix(sys __instance)
 			{
-				//QualitySettings.antiAliasing = 12;
 				debug?.LogInfo("Sys Init Player");
 				foreach (var entry in FashionMap)
 				{
@@ -236,6 +259,15 @@ namespace DressCode
 					if (role != null && __instance.m_self.has_dress(entry.Value))
 					{
 						role.dress = entry.Value;
+					}
+				}
+
+				foreach (var entry in AccessoryMap)
+				{
+					var role = __instance.m_self.get_card_id(entry.Key)?.get_role();
+					if (role != null && __instance.m_self.has_dress(entry.Value))
+					{
+						role.faces[39] = entry.Value;
 					}
 				}
 			}
@@ -251,7 +283,7 @@ namespace DressCode
 				{
 					return true;
 				}
-				else if (FashionDressRegister.TryGetValue(id, out __result))
+				else if (DressRegister.TryGetValue(id, out __result))
 				{
 					return false;
 				}
@@ -289,23 +321,13 @@ namespace DressCode
 			}
 		}
 
-		[HarmonyPatch(typeof(dress_gui), nameof(dress_gui.reset))]
-		public static class DressGui_Reset_Patch
-		{
-			public static ccard card;
-			public static void Prefix(ccard _card)
-			{
-				card = _card;
-			}
-		}
-
 		[HarmonyPatch(typeof(dress_gui), nameof(dress_gui.dress_save))]
 		public static class DressGui_DressSave_Patch
 		{
-			public static bool Prefix()
+			public static bool Prefix(ccard ___m_card)
 			{
-				var id = DressGui_Reset_Patch.card.get_template_id();
-				var dress_id = DressGui_Reset_Patch.card.get_role().dress;
+				var id = ___m_card.get_template_id();
+				var dress_id = ___m_card.get_role().dress;
 				if (FashionMap != null && (unlockAll.Value || dress_id < 0))
 				{
 					var card = sys._instance.m_self.get_card_id(id);
@@ -321,6 +343,33 @@ namespace DressCode
 			}
 		}
 
+		[HarmonyPatch(typeof(makeup_gui), "save_data")]
+		public static class MakeUpGui_SaveData_Patch
+		{
+			public static MethodBase TargetMethod()
+			{
+				return typeof(makeup_gui).GetMethod("save_data");
+			}
+
+			public static void Prefix(
+				makeup_gui __instance,
+				ref int ___m_initial_glass_id,
+				int[] ___m_face_color_datas
+			) {
+				var id = __instance.m_card.get_template_id();
+				var accessory_id = ___m_face_color_datas[8];
+				if (AccessoryMap != null && (unlockAll.Value || accessory_id < 0))
+				{
+					___m_initial_glass_id = accessory_id;
+					AccessoryMap[id] = accessory_id;
+				}
+				else
+				{
+					AccessoryMap?.Remove(id);
+				}
+			}
+		}
+
 		[HarmonyPatch(typeof(dress_gui), "list_item")]
 		public static class DressGui_ListItem_Patch
 		{
@@ -332,10 +381,35 @@ namespace DressCode
 			public static void Prefix(List<s_t_dress> t_dresses)
 			{
 				var template = t_dresses[0];
-				foreach (var dress in FashionDressRegister.Values)
+				foreach (var dress in DressRegister.Values)
 				{
-					dress.icon = dress.icon ?? template.icon;
-					t_dresses.Insert(0, dress);
+					if (dress.type == 1)
+					{
+						dress.icon = dress.icon ?? template.icon;
+						t_dresses.Insert(0, dress);
+					}
+				}
+			}
+		}
+
+		[HarmonyPatch(typeof(makeup_gui), "ManageGlasses")]
+		public static class MakeUpGui_ManageGlasses_Patch
+		{
+			public static MethodBase TargetMethod()
+			{
+				return typeof(makeup_gui).GetMethod("ManageGlasses");
+			}
+
+			public static void Prefix(List<s_t_dress> t_dresses)
+			{
+				var template = t_dresses[0];
+				foreach (var dress in DressRegister.Values)
+				{
+					if (dress.type == 2)
+					{
+						dress.icon = dress.icon ?? template.icon;
+						t_dresses.Insert(0, dress);
+					}
 				}
 			}
 		}
@@ -362,7 +436,7 @@ namespace DressCode
 					var unit = __result.m_xml.Element("unit");
 					if (unit != null && unit.Attribute("modded") == null)
 					{
-						foreach (var doc in FashionConfigRegister.Values)
+						foreach (var doc in ConfigRegister.Values)
 						{
 							unit.Add(doc.Elements("part"));
 						}

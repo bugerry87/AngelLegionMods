@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
+using BepInEx.Logging;
 
 namespace ConfigurationManager
 {
@@ -32,25 +33,21 @@ namespace ConfigurationManager
             catch (Exception ex)
             {
                 results = Enumerable.Empty<SettingEntryBase>();
-                BepInExPlugin.Logger.LogError(ex);
+                ConfigurationManager.Logger.LogError(ex);
             }
 
             var allPlugins = Utilities.Utils.FindPlugins();
 
-            BepInExPlugin.Dbgl($"all plugins: {allPlugins.Length}");
+            ConfigurationManager.Logger.LogInfo($"all plugins: {allPlugins.Length}");
 
             foreach (var plugin in allPlugins)
             {
                 if (plugin == null)
-                    continue;
-
-                //BepInExPlugin.Dbgl(plugin.name);
-
-                if (plugin.Info.Metadata.GUID == "com.bepis.bepinex.configurationmanager" || plugin.enabled == false)
                 {
-                    BepInExPlugin.Dbgl($"plugin: {plugin.Info.Metadata.Name} enabled {plugin.enabled}");
+                    ConfigurationManager.Logger.LogWarning("Plugin is NULL!");
+
+					continue;
                 }
-                //BepInExPlugin.Dbgl($"plugin: {plugin.Info.Metadata.Name} enabled {plugin.enabled}");
 
                 var type = plugin.GetType();
 
@@ -59,7 +56,7 @@ namespace ConfigurationManager
                 if (type.GetCustomAttributes(typeof(BrowsableAttribute), false).Cast<BrowsableAttribute>()
                     .Any(x => !x.Browsable))
                 {
-                    BepInExPlugin.Dbgl($"{pluginInfo.Name} has no settings, skipping.");
+					ConfigurationManager.Logger.LogInfo($"{pluginInfo.Name} has no settings, skipping.");
                     modsWithoutSettings.Add(pluginInfo.Name);
                     continue;
                 }
@@ -71,13 +68,13 @@ namespace ConfigurationManager
                 int count = detected.FindAll(x => x.Browsable == false).Count;
                 if(count > 0)
                 {
-                    BepInExPlugin.Dbgl($"{count} settings are not browseable, removing.");
+					ConfigurationManager.Logger.LogInfo($"{count} settings are not browseable, removing.");
                     detected.RemoveAll(x => x.Browsable == false);
                 }
 
                 if (!detected.Any())
                 {
-                    BepInExPlugin.Dbgl($"{pluginInfo.Name} has no showable settings, skipping.");
+					ConfigurationManager.Logger.LogInfo($"{pluginInfo.Name} has no showable settings, skipping.");
                     modsWithoutSettings.Add(pluginInfo.Name);
                 }
 

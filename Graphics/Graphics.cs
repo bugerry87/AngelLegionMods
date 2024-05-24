@@ -3,7 +3,6 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace Graphics
 {
@@ -21,9 +20,6 @@ namespace Graphics
 		public static ConfigEntry<bool> softParticles;
 		public static ConfigEntry<ShadowQuality> shadows;
 		public static ConfigEntry<int> pixelLightCount;
-		public static ConfigEntry<int> maximumLODLevel;
-		public static ConfigEntry<bool> streamingMipmapsActive;
-		public static ConfigEntry<DefaultReflectionMode> defaultReflectionMode;
 
 		public BepInExPlugin()
 		{
@@ -79,27 +75,6 @@ namespace Graphics
 				"Max number of lights considered per pixel"
 			);
 
-			maximumLODLevel = Config.Bind(
-				"Graphics",
-				"Maximum LOD Level",
-				QualitySettings.maximumLODLevel,
-				"Level of Detail Level"
-			);
-
-			streamingMipmapsActive = Config.Bind(
-				"Graphics",
-				"Mipmaps",
-				QualitySettings.streamingMipmapsActive,
-				"Whether to Midmaps"
-			);
-
-			defaultReflectionMode = Config.Bind(
-				"Graphics",
-				"Default Reflection Mode",
-				RenderSettings.defaultReflectionMode,
-				"Reflection mode at default"
-			);
-
 			if (isEnabled.Value)
 			{
 				debug = isDebug.Value ? Logger : null;
@@ -134,21 +109,6 @@ namespace Graphics
 			{
 				QualitySettings.pixelLightCount = pixelLightCount.Value;
 			};
-
-			maximumLODLevel.SettingChanged += (object source, EventArgs args) =>
-			{
-				QualitySettings.maximumLODLevel = maximumLODLevel.Value;
-			};
-
-			streamingMipmapsActive.SettingChanged += (object source, EventArgs args) =>
-			{
-				QualitySettings.streamingMipmapsActive = streamingMipmapsActive.Value;
-			};
-
-			defaultReflectionMode.SettingChanged += (object source, EventArgs args) =>
-			{
-				RenderSettings.defaultReflectionMode = defaultReflectionMode.Value;
-			};
 		}
 
 		protected void Start()
@@ -158,11 +118,6 @@ namespace Graphics
 			QualitySettings.softParticles = softParticles.Value;
 			QualitySettings.shadows = shadows.Value;
 			QualitySettings.pixelLightCount = pixelLightCount.Value;
-			QualitySettings.maximumLODLevel = maximumLODLevel.Value;
-			QualitySettings.streamingMipmapsActive = streamingMipmapsActive.Value;
-			RenderSettings.defaultReflectionMode = defaultReflectionMode.Value;
-			Camera.main.allowMSAA = true;
-			Camera.main.allowHDR = true;
 		}
 	}
 }

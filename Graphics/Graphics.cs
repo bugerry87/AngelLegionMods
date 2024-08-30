@@ -20,6 +20,7 @@ namespace Graphics
 		public static ConfigEntry<bool> softParticles;
 		public static ConfigEntry<ShadowQuality> shadows;
 		public static ConfigEntry<int> pixelLightCount;
+		public static ConfigEntry<bool> allowHDR;
 
 		public BepInExPlugin()
 		{
@@ -75,6 +76,13 @@ namespace Graphics
 				"Max number of lights considered per pixel"
 			);
 
+			allowHDR = Config.Bind(
+				"Graphics",
+				"Allow HDR",
+				true,
+				"Please disable HDR while using Anti Aliasing!"
+			);
+
 			if (isEnabled.Value)
 			{
 				debug = isDebug.Value ? Logger : null;
@@ -118,6 +126,12 @@ namespace Graphics
 			QualitySettings.softParticles = softParticles.Value;
 			QualitySettings.shadows = shadows.Value;
 			QualitySettings.pixelLightCount = pixelLightCount.Value;
+		}
+
+		protected void FixedUpdate()
+		{
+			if (Camera.main == null) return;
+			Camera.main.allowHDR = allowHDR.Value;
 		}
 	}
 }

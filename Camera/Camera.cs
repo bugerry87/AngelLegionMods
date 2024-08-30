@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace Camera
 {
-	[BepInPlugin("bugerry.Camera", "Camera", "0.0.1")]
+	[BepInPlugin("bugerry.Camera", "Camera", "0.0.2")]
 	public partial class BepInExPlugin : BaseUnityPlugin
 	{
 		public static BepInExPlugin context;
@@ -48,7 +48,7 @@ namespace Camera
 				"Camera",
 				"Crouch Offset",
 				Vector3.zero,
-				"Key for toggling crouch"
+				"Crouching offset from player center"
 			);
 
 			if (isEnabled.Value)
